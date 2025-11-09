@@ -45,18 +45,43 @@ export function EventsPanel() {
         <p className="text-sm text-slate-400 italic">Chưa có sự kiện nào xảy ra</p>
       ) : (
         <div className="space-y-2">
-          {recentEvents.map((event) => (
-            <div
-              key={event.id}
-              className={`flex gap-2 p-3 rounded border-2 ${getEventColor(event.type)} transition-all hover:shadow-md`}
-            >
-              <span className="text-2xl flex-shrink-0">{getEventIcon(event.type)}</span>
-              <div className="flex-1">
-                <p className="font-bold text-sm text-slate-100">{event.description}</p>
-                <p className="text-xs text-slate-400">Lượt {event.turn}</p>
+          {recentEvents.map((event) => {
+            const isActive = event.endTurn && gameState.turn < event.endTurn;
+            const turnsRemaining = event.endTurn ? Math.max(0, event.endTurn - gameState.turn) : 0;
+            
+            return (
+              <div
+                key={event.id}
+                className={`flex gap-2 p-3 rounded border-2 ${getEventColor(event.type)} transition-all hover:shadow-md`}
+              >
+                <span className="text-2xl flex-shrink-0">{getEventIcon(event.type)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-slate-100 mb-1">{event.description}</p>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs text-slate-400">Lượt {event.turn}</p>
+                      {event.duration && (
+                        <p className="text-xs text-slate-300">
+                          ⏱️ Ảnh hưởng: {event.duration} lượt
+                          {isActive && turnsRemaining > 0 && (
+                            <span className="ml-1 text-yellow-400 font-semibold">
+                              (Còn {turnsRemaining} lượt)
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    {event.effects && (
+                      <div className="mt-2 pt-2 border-t border-slate-600">
+                        <p className="text-xs font-semibold text-slate-300 mb-1">📋 Ảnh hưởng:</p>
+                        <p className="text-xs text-slate-400 leading-relaxed">{event.effects}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

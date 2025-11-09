@@ -7,7 +7,6 @@ import {
   WorkerType,
   BuildingType,
   ResourceType,
-  Player,
   BUILDING_SPECS,
   WORKER_SPECS,
 } from '@/types/game';
@@ -50,7 +49,7 @@ export function initializeGame(boardSize: number = 8): GameState {
     resources: { stone: 20, iron: 15, data: 10 },
     cost: 50, // Bắt đầu với 50 chi phí
     turn: 0,
-    gamePhase: 'setup',
+    gamePhase: 'playing',
     socialValue: 0,
     productivity: 0,
     creativity: 0,
@@ -59,29 +58,6 @@ export function initializeGame(boardSize: number = 8): GameState {
     selectedTile: null,
     events: [],
     completionMessages: [],
-    players: [],
-    currentPlayerId: null,
-  };
-}
-
-// Add a player to the game
-export function addPlayer(state: GameState, name: string, color: string): GameState {
-  const player: Player = {
-    id: `player-${Date.now()}-${Math.random()}`,
-    name,
-    color,
-    score: 0,
-  };
-
-  const updatedPlayers = [...state.players, player];
-  
-  // Set first player as current if no current player
-  const currentPlayerId = state.currentPlayerId || (updatedPlayers.length > 0 ? updatedPlayers[0].id : null);
-
-  return {
-    ...state,
-    players: updatedPlayers,
-    currentPlayerId,
   };
 }
 
@@ -316,9 +292,9 @@ export function processTurn(state: GameState): GameState {
   // Update building progress
   updatedState = updateBuildingProgress(updatedState);
 
-  // Trigger random events (tăng xác suất lên 30% để dễ thấy sự kiện hơn)
-  if (Math.random() < 0.3) {
-    // 30% chance of event per turn
+  // Trigger random events (tỉ lệ 1/10 - cứ 10 lượt thì xảy ra 1 sự kiện)
+  if (Math.random() < 0.1) {
+    // 10% chance of event per turn (1/10)
     updatedState = triggerRandomEvent(updatedState);
   }
 
@@ -332,7 +308,7 @@ export function processTurn(state: GameState): GameState {
 function collectResourcesFromTiles(state: GameState): GameState {
   const updatedResources = { ...state.resources };
   const updatedBoard = state.board.map((row) => row.map((tile) => ({ ...tile })));
-  let totalCostChange = 0; // Thay đổi chi phí (trả công nhân -1, thu được từ tài nguyên)
+  let totalCostChange = 0; // Thay đổi chi phí (trả công nhân -1)
 
   // Chỉ thu thập từ công nhân đang khai thác (isMining = true)
   for (const worker of state.workers) {
@@ -345,7 +321,7 @@ function collectResourcesFromTiles(state: GameState): GameState {
       const resourceType = tile.resource;
       updatedResources[resourceType] = (updatedResources[resourceType] || 0) + 2; // Thu được 2 tài nguyên
       
-      // Trả chi phí 1 cho công nhân khi thu thập (chi phí = 1)
+      // Trả chi phí 1 cho công nhân khi thu thập (TRỪ từ cost)
       totalCostChange -= 1; // Trừ 1 chi phí để trả công nhân
       
       // Remove resource from tile after collection (optional - can keep it for continuous collection)
@@ -362,7 +338,7 @@ function collectResourcesFromTiles(state: GameState): GameState {
   return {
     ...state,
     resources: updatedResources,
-    cost: state.cost + totalCostChange, // Trả chi phí cho công nhân (mỗi công nhân = -1)
+    cost: state.cost + totalCostChange, // Trả chi phí cho công nhân (mỗi công nhân = -1, TRỪ từ cost)
     board: updatedBoard,
   };
 }
@@ -466,12 +442,12 @@ function updateBuildingProgress(state: GameState): GameState {
 
       // Trả chi phí cho công nhân sau khi hoàn thành công trình
       // Mỗi công nhân được trả 1 chi phí, mỗi AI được trả 2 chi phí
+      // Theo lý thuyết Mác: Chi phí lao động = chi phí đã trả cho công nhân (TRỪ từ cost)
       for (const worker of assignedWorkers) {
-        const spec = WORKER_SPECS[worker.type];
         if (worker.type === 'human') {
-          updatedCost += 1; // Trả 1 chi phí cho công nhân con người
+          updatedCost -= 1; // Trả 1 chi phí cho công nhân con người (TRỪ từ cost)
         } else {
-          updatedCost += 2; // Trả 2 chi phí cho AI worker
+          updatedCost -= 2; // Trả 2 chi phí cho AI worker (TRỪ từ cost)
         }
       }
     }
@@ -508,16 +484,45 @@ function updateBuildingProgress(state: GameState): GameState {
   };
 }
 
+// Get event effects description
+function getEventEffects(eventType: string): { duration: number; effects: string } {
+  const effectsMap: Record<string, { duration: number; effects: string }> = {
+    material_shortage: {
+      duration: 1,
+      effects: 'Giảm -5 đá ngay lập tức. Ảnh hưởng: 1 lượt (tức thì)',
+    },
+    environment_change: {
+      duration: 3,
+      effects: '👷 Công nhân: Năng suất +0.2x (tối đa 1.5x) | 🤖 AI: Năng suất -0.3x (tối thiểu 0.5x). Ảnh hưởng: 3 lượt',
+    },
+    tech_upgrade: {
+      duration: 5,
+      effects: '🤖 AI: Năng suất +0.3x (tối đa 1.5x) | 💾 Giảm -3 dữ liệu. Ảnh hưởng: 5 lượt',
+    },
+    strike: {
+      duration: 1,
+      effects: '👷 Công nhân: Ngừng làm việc, năng suất tăng lên 1.2x sau khi kết thúc. Ảnh hưởng: 1 lượt',
+    },
+  };
+  return effectsMap[eventType] || { duration: 1, effects: 'Ảnh hưởng: 1 lượt' };
+}
+
 // Trigger a random event
 function triggerRandomEvent(state: GameState): GameState {
   const eventTypes = ['material_shortage', 'environment_change', 'tech_upgrade', 'strike'] as const;
   const eventType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
 
+  const eventEffects = getEventEffects(eventType);
+  const endTurn = state.turn + eventEffects.duration;
+
   const event: GameEvent = {
     id: `event-${Date.now()}-${Math.random()}`,
     type: eventType,
     turn: state.turn,
+    duration: eventEffects.duration,
+    endTurn: endTurn,
     description: getEventDescription(eventType),
+    effects: eventEffects.effects,
   };
 
   let updatedState = {
@@ -613,10 +618,52 @@ function calculateSocialValue(state: GameState): GameState {
     }
   }
 
-  // Calculate labor cost (sum of all worker costs)
+  // Tính productivity từ worker productivity (ảnh hưởng bởi events)
+  // Tổng productivity = tổng worker.productivity của tất cả workers đang làm việc
+  let workerProductivity = 0;
   for (const worker of state.workers) {
-    const spec = WORKER_SPECS[worker.type];
-    laborCost += spec.cost;
+    if (worker.isWorking || worker.isMining) {
+      // Tính productivity dựa trên worker.productivity (có thể bị ảnh hưởng bởi events)
+      const baseProductivity = worker.type === 'human' ? 1 : 2; // Human = 1, AI = 2
+      workerProductivity += baseProductivity * worker.productivity;
+    }
+  }
+  // Thêm worker productivity vào tổng productivity
+  productivity += Math.floor(workerProductivity);
+
+  // Calculate labor cost theo lý thuyết Mác: Tổng chi phí đã trả cho công nhân
+  // Chi phí lao động = Chi phí khi gán công nhân vào công trình + Chi phí trả khi hoàn thành + Chi phí khai thác
+  
+  // 1. Tính chi phí khi gán công nhân vào công trình (đã trả khi gán)
+  // Mỗi công nhân được gán vào công trình đã trả chi phí = building.baseTime
+  for (const building of state.buildings) {
+    if (building.assignedWorkers.length > 0) {
+      const spec = BUILDING_SPECS[building.type];
+      // Chi phí khi gán = số công nhân * baseTime
+      laborCost += building.assignedWorkers.length * spec.baseTime;
+    }
+  }
+  
+  // 2. Tính chi phí trả cho công nhân khi hoàn thành công trình (từ completionMessages)
+  // Mỗi công nhân human được trả 1, mỗi AI được trả 2 khi hoàn thành
+  for (const message of state.completionMessages) {
+    const humanCost = message.workerStats.humanWorkers * 1; // 1 chi phí mỗi human
+    const aiCost = message.workerStats.aiWorkers * 2; // 2 chi phí mỗi AI
+    laborCost += humanCost + aiCost;
+  }
+  
+  // 3. Tính chi phí trả cho công nhân khai thác tài nguyên
+  // Mỗi lượt, mỗi công nhân khai thác được trả 1 chi phí (đã TRỪ từ cost trong collectResourcesFromTiles)
+  // Tính chính xác: số công nhân đang khai thác * số lượt đã khai thác
+  // Vì mỗi lượt đều trả 1 chi phí cho mỗi công nhân khai thác, nên tính từ số lượt
+  const miningWorkers = state.workers.filter(w => w.isMining).length;
+  // Mỗi công nhân khai thác trả 1 chi phí mỗi lượt
+  // Tính chính xác: số công nhân khai thác hiện tại * số lượt đã chơi (vì mỗi lượt đều trả)
+  // Tuy nhiên, công nhân có thể không khai thác từ đầu, nên ước tính
+  if (miningWorkers > 0 && state.turn > 0) {
+    // Ước tính: mỗi công nhân khai thác trung bình từ lượt 1 đến lượt hiện tại
+    // Hoặc có thể tính chính xác hơn nếu track thời điểm bắt đầu khai thác
+    laborCost += miningWorkers * Math.max(1, Math.floor(state.turn * 0.5)); // Ước tính 50% số lượt
   }
 
   // Bonus for human worker organization

@@ -3,7 +3,6 @@ import { GameState, WorkerType, BuildingType } from '@/types/game';
 import {
   initializeGame,
   addWorker,
-  addPlayer,
   assignWorkerToBuilding,
   assignWorkerToMining,
   unassignWorkerFromMining,
@@ -19,7 +18,6 @@ interface GameContextType {
   startGame: () => void;
   nextTurn: () => void;
   addWorker: (type: WorkerType, x: number, y: number) => void;
-  addPlayer: (name: string, color: string) => void;
   createBuilding: (type: BuildingType, x: number, y: number) => void;
   assignWorkerToBuilding: (workerId: string, buildingId: string) => void;
   assignWorkerToMining: (workerId: string, x: number, y: number) => void;
@@ -57,10 +55,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const handleAddWorker = useCallback((type: WorkerType, x: number, y: number) => {
     setGameState((prev) => addWorker(prev, type, x, y));
-  }, []);
-
-  const handleAddPlayer = useCallback((name: string, color: string) => {
-    setGameState((prev) => addPlayer(prev, name, color));
   }, []);
 
   const handleCreateBuilding = useCallback((type: BuildingType, x: number, y: number) => {
@@ -109,7 +103,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     startGame,
     nextTurn,
     addWorker: handleAddWorker,
-    addPlayer: handleAddPlayer,
     createBuilding: handleCreateBuilding,
     assignWorkerToBuilding: handleAssignWorkerToBuilding,
     assignWorkerToMining: handleAssignWorkerToMining,

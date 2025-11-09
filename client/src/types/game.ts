@@ -5,14 +5,6 @@ export type BuildingType = 'house' | 'factory' | 'ai_center';
 export type WorkerType = 'human' | 'ai';
 export type EventType = 'material_shortage' | 'environment_change' | 'tech_upgrade' | 'strike';
 
-// Player interface
-export interface Player {
-  id: string;
-  name: string;
-  color: string; // Màu để phân biệt người chơi
-  score: number; // Điểm số của người chơi
-}
-
 // Game state interfaces
 export interface Tile {
   id: string;
@@ -74,16 +66,17 @@ export interface GameState {
   selectedTile: { x: number; y: number } | null;
   events: GameEvent[];
   completionMessages: BuildingCompletionMessage[]; // Thông điệp khi hoàn thành công trình
-  players: Player[]; // Danh sách người chơi
-  currentPlayerId: string | null; // ID của người chơi hiện tại
 }
 
 export interface GameEvent {
   id: string;
   type: EventType;
   turn: number;
+  duration: number; // Số lượt ảnh hưởng
+  endTurn: number; // Lượt kết thúc
   affectedWorkerType?: WorkerType;
   description: string;
+  effects: string; // Mô tả chi tiết ảnh hưởng
 }
 
 export interface GameResult {
